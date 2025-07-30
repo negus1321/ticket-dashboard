@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>لوحة تحكم نظام التذاكر - Discord</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700&display=swap');
+        
+        * {
+            font-family: 'Cairo', sans-serif;
+        }
+        
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        
+        .card-hover {
+            transition: all 0.3s ease;
+        }
+        
+        .card-hover:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+        }
+        
+        .status-open { background: #10b981; }
+        .status-pending { background: #f59e0b; }
+        .status-closed { background: #ef4444; }
+        
+        .animate-fade-in {
+            animation: fadeIn 0.5s ease-in;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            transform: translateX(400px);
+            transition: transform 0.3s ease;
+        }
+        
+        .notification.show {
+            transform: translateX(0);
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <!-- إشعار النجاح -->
+    <div id="notification" class="notification bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg">
+        <i class="fas fa-check-circle ml-2"></i>
+        <span id="notificationText">تم الحفظ بنجاح!</span>
+    </div>
+
+    <!-- الشريط العلوي -->
+    <nav class="gradient-bg text-white shadow-lg">
+        <div class="container mx-auto px-6 py-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-4 space-x-reverse">
+                    <i class="fab fa-discord text-3xl"></i>
+                    <h1 class="text-2xl font-bold">لوحة تحكم نظام التذاكر</h1>
+                </div>
+                <div class="flex items-center space-x-4 space-x-reverse">
+                    <span class="bg-white bg-opacity-20 px-3 py-1 rounded-full text-sm">
+                        <i class="fas fa-server ml-1"></i>
+                        خادم متصل
+                    </span>
+                    <button class="bg-white bg-opacity-20 hover:bg-opacity-30 px-4 py-2 rounded-lg transition-all">
+                        <i class="fas fa-cog"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mx-auto px-6 py-8">
+        <!-- الإحصائيات -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+            <div class="bg-white rounded-xl shadow-lg p-6 card-hover animate-fade-in">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-600 text-sm">إجمالي التذاكر</p>
+                        <p class="text-3xl font-bold text-gray-800" id="totalTickets">247</p>
+                    </div>
+                    <div class="bg-blue-100 p-3 rounded-full">
+                        <i class="fas fa-ticket-alt text-blue-600 text-xl"></i>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-xl shadow-lg p-6 card-hover animate-fade-in">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-600 text-sm">تذاكر مفتوحة</p>
+                        <p class="text-3xl font-bold text-green-600" id="openTickets">23</p>
+                    </div>
+                    <div class="bg-green-100 p-3 rounded-full">
+                        <i class="fas fa-folder-open text-green-600 text-xl"></i>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-xl shadow-lg p-6 card-hover animate-fade-in">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-600 text-sm">في الانتظار</p>
+                        <p class="text-3xl font-bold text-yellow-600" id="pendingTickets">8</p>
+                    </div>
+                    <div class="bg-yellow-100 p-3 rounded-full">
+                        <i class="fas fa-clock text-yellow-600 text-xl"></i>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-xl shadow-lg p-6 card-hover animate-fade-in">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-600 text-sm">مغلقة</p>
+                        <p class="text-3xl font-bold text-red-600" id="closedTickets">216</p>
+                    </div>
+                    <div class="bg-red-100 p-3 rounded-full">
+                        <i class="fas fa-folder text-red-600 text-xl"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <!-- قائمة التذاكر -->
+            <div class="lg:col-span-2">
+                <div class="bg-white rounded-xl shadow-lg">
+                    <div class="p-6 border-b border-gray-200">
+                        <div class="flex items-center justify-between">
+                            <h2 class="text-xl font-bold text-gray-800">التذاكر الحديثة</h2>
+                            <div class="flex space-x-2 space-x-reverse">
+                                <select class="border border-gray-300 rounded-lg px-3 py-2 text-sm">
+                                    <option>جميع التذاكر</option>
+                                    <option>مفتوحة</option>
+                                    <option>في الانتظار</option>
+                                    <option>مغلقة</option>
+                                </select>
+                                <button onclick="refreshTickets()" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-sm transition-all">
+                                    <i class="fas fa-sync-alt"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="p-6">
+                        <div id="ticketsList" class="space-y-4">
+                            <!-- التذاكر ستظهر هنا -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- الإعدادات السريعة -->
+            <div class="space-y-6">
+                <!-- إعدادات البوت -->
+                <div class="bg-white rounded-xl shadow-lg p-6">
+                    <h3 class="text-lg font-bold text-gray-800 mb-4">إعدادات البوت</h3>
+                    
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">قناة التذاكر</label>
+                            <select class="w-full border border-gray-300 rounded-lg px-3 py-2">
+                                <option>#tickets</option>
+                                <option>#support</option>
+                                <option>#help</option>
+                            </select>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">رتبة المشرفين</label>
+                            <select class="w-full border border-gray-300 rounded-lg px-3 py-2">
+                                <option>@Moderator</option>
+                                <option>@Admin</option>
+                                <option>@Staff</option>
+                            </select>
+                        </div>
+                        
+                        <div class="flex items-center justify-between">
+                            <span class="text-sm font-medium text-gray-700">إشعارات التذاكر الجديدة</span>
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" checked class="sr-only peer">
+                                <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                            </label>
+                        </div>
+                        
+                        <button onclick="saveSettings()" class="w-full bg-green-500 hover:bg-green-600 text-white py-2 rounded-lg transition-all">
+                            <i class="fas fa-save ml-2"></i>
+                            حفظ الإعدادات
+                        </button>
+                    </div>
+                </div>
+
+                <!-- إحصائيات سريعة -->
+                <div class="bg-white rounded-xl shadow-lg p-6">
+                    <h3 class="text-lg font-bold text-gray-800 mb-4">إحصائيات اليوم</h3>
+                    
+                    <div class="space-y-3">
+                        <div class="flex items-center justify-between">
+                            <span class="text-sm text-gray-600">تذاكر جديدة</span>
+                            <span class="font-bold text-blue-600">12</span>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-sm text-gray-600">تذاكر مغلقة</span>
+                            <span class="font-bold text-green-600">8</span>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-sm text-gray-600">متوسط وقت الرد</span>
+                            <span class="font-bold text-yellow-600">15 دقيقة</span>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-sm text-gray-600">رضا العملاء</span>
+                            <span class="font-bold text-purple-600">94%</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- أدوات سريعة -->
+                <div class="bg-white rounded-xl shadow-lg p-6">
+                    <h3 class="text-lg font-bold text-gray-800 mb-4">أدوات سريعة</h3>
+                    
+                    <div class="space-y-3">
+                        <button onclick="createTicket()" class="w-full bg-blue-500 hover:bg-blue-600 text-white py-2 rounded-lg transition-all text-sm">
+                            <i class="fas fa-plus ml-2"></i>
+                            إنشاء تذكرة جديدة
+                        </button>
+                        <button onclick="exportData()" class="w-full bg-purple-500 hover:bg-purple-600 text-white py-2 rounded-lg transition-all text-sm">
+                            <i class="fas fa-download ml-2"></i>
+                            تصدير البيانات
+                        </button>
+                        <button onclick="clearLogs()" class="w-full bg-red-500 hover:bg-red-600 text-white py-2 rounded-lg transition-all text-sm">
+                            <i class="fas fa-trash ml-2"></i>
+                            مسح السجلات
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- نافذة منبثقة لتفاصيل التذكرة -->
+    <div id="ticketModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+        <div class="bg-white rounded-xl shadow-2xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div class="p-6 border-b border-gray-200">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-xl font-bold text-gray-800">تفاصيل التذكرة</h3>
+                    <button onclick="closeModal()" class="text-gray-500 hover:text-gray-700">
+                        <i class="fas fa-times text-xl"></i>
+                    </button>
+                </div>
+            </div>
+            
+            <div class="p-6">
+                <div id="ticketDetails">
+                    <!-- تفاصيل التذكرة ستظهر هنا -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // بيانات وهمية للتذاكر
+        const tickets = [
+            {
+                id: 'T-001',
+                user: 'أحمد محمد',
+                avatar: '👤',
+                subject: 'مشكلة في الدخول للخادم',
+                status: 'open',
+                priority: 'high',
+                created: '2024-01-15 14:30',
+                category: 'تقني'
+            },
+            {
+                id: 'T-002',
+                user: 'فاطمة علي',
+                avatar: '👩',
+                subject: 'طلب تغيير الرتبة',
+                status: 'pending',
+                priority: 'medium',
+                created: '2024-01-15 13:15',
+                category: 'إداري'
+            },
+            {
+                id: 'T-003',
+                user: 'محمد سالم',
+                avatar: '👨',
+                subject: 'شكوى من عضو',
+                status: 'closed',
+                priority: 'low',
+                created: '2024-01-15 12:00',
+                category: 'شكاوى'
+            },
+            {
+                id: 'T-004',
+                user: 'نورا أحمد',
+                avatar: '👩‍💼',
+                subject: 'اقتراح تحسين البوت',
+                status: 'open',
+                priority: 'medium',
+                created: '2024-01-15 11:45',
+                category: 'اقتراحات'
+            },
+            {
+                id: 'T-005',
+                user: 'خالد يوسف',
+                avatar: '👨‍💻',
+                subject: 'مشكلة في الأوامر',
+                status: 'pending',
+                priority: 'high',
+                created: '2024-01-15 10:30',
+                category: 'تقني'
+            }
+        ];
+
+        // عرض التذاكر
+        function displayTickets() {
+            const ticketsList = document.getElementById('ticketsList');
+            ticketsList.innerHTML = '';
+
+            tickets.forEach(ticket => {
+                const statusColor = ticket.status === 'open' ? 'bg-green-100 text-green-800' :
+                                  ticket.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                                  'bg-red-100 text-red-800';
+
+                const priorityColor = ticket.priority === 'high' ? 'text-red-600' :
+                                    ticket.priority === 'medium' ? 'text-yellow-600' :
+                                    'text-green-600';
+
+                const ticketElement = document.createElement('div');
+                ticketElement.className = 'border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-all cursor-pointer';
+                ticketElement.onclick = () => showTicketDetails(ticket);
+
+                ticketElement.innerHTML = `
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center space-x-3 space-x-reverse">
+                            <div class="text-2xl">${ticket.avatar}</div>
+                            <div>
+                                <h4 class="font-semibold text-gray-800">${ticket.subject}</h4>
+                                <p class="text-sm text-gray-600">بواسطة: ${ticket.user} • ${ticket.id}</p>
+                                <p class="text-xs text-gray-500">${ticket.created}</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center space-x-2 space-x-reverse">
+                            <span class="px-2 py-1 rounded-full text-xs font-medium ${statusColor}">
+                                ${ticket.status === 'open' ? 'مفتوحة' : ticket.status === 'pending' ? 'انتظار' : 'مغلقة'}
+                            </span>
+                            <span class="text-xs ${priorityColor}">
+                                <i class="fas fa-exclamation-circle"></i>
+                                ${ticket.priority === 'high' ? 'عالية' : ticket.priority === 'medium' ? 'متوسطة' : 'منخفضة'}
+                            </span>
+                        </div>
+                    </div>
+                `;
+
+                ticketsList.appendChild(ticketElement);
+            });
+        }
+
+        // عرض تفاصيل التذكرة
+        function showTicketDetails(ticket) {
+            const modal = document.getElementById('ticketModal');
+            const details = document.getElementById('ticketDetails');
+
+            const statusText = ticket.status === 'open' ? 'مفتوحة' : 
+                              ticket.status === 'pending' ? 'في الانتظار' : 'مغلقة';
+
+            details.innerHTML = `
+                <div class="space-y-6">
+                    <div class="flex items-center space-x-4 space-x-reverse">
+                        <div class="text-4xl">${ticket.avatar}</div>
+                        <div>
+                            <h4 class="text-xl font-bold text-gray-800">${ticket.subject}</h4>
+                            <p class="text-gray-600">التذكرة: ${ticket.id}</p>
+                            <p class="text-sm text-gray-500">تم الإنشاء: ${ticket.created}</p>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">المستخدم</label>
+                            <p class="text-gray-800">${ticket.user}</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">الحالة</label>
+                            <p class="text-gray-800">${statusText}</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">الأولوية</label>
+                            <p class="text-gray-800">${ticket.priority === 'high' ? 'عالية' : ticket.priority === 'medium' ? 'متوسطة' : 'منخفضة'}</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">الفئة</label>
+                            <p class="text-gray-800">${ticket.category}</p>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">الرسائل</label>
+                        <div class="bg-gray-50 rounded-lg p-4 space-y-3">
+                            <div class="bg-white rounded-lg p-3">
+                                <div class="flex items-center space-x-2 space-x-reverse mb-2">
+                                    <span class="font-medium">${ticket.user}</span>
+                                    <span class="text-xs text-gray-500">${ticket.created}</span>
+                                </div>
+                                <p class="text-gray-700">مرحباً، أواجه مشكلة في ${ticket.subject.toLowerCase()}. هل يمكنكم مساعدتي؟</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="flex space-x-3 space-x-reverse">
+                        <button onclick="updateTicketStatus('${ticket.id}', 'closed')" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg transition-all">
+                            <i class="fas fa-times ml-1"></i>
+                            إغلاق التذكرة
+                        </button>
+                        <button onclick="updateTicketStatus('${ticket.id}', 'pending')" class="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-lg transition-all">
+                            <i class="fas fa-clock ml-1"></i>
+                            وضع في الانتظار
+                        </button>
+                        <button onclick="replyToTicket('${ticket.id}')" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-all">
+                            <i class="fas fa-reply ml-1"></i>
+                            رد على التذكرة
+                        </button>
+                    </div>
+                </div>
+            `;
+
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+
+        // إغلاق النافذة المنبثقة
+        function closeModal() {
+            const modal = document.getElementById('ticketModal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+
+        // تحديث حالة التذكرة
+        function updateTicketStatus(ticketId, newStatus) {
+            const ticket = tickets.find(t => t.id === ticketId);
+            if (ticket) {
+                ticket.status = newStatus;
+                displayTickets();
+                updateStats();
+                showNotification(`تم تحديث حالة التذكرة ${ticketId} إلى ${newStatus === 'closed' ? 'مغلقة' : newStatus === 'pending' ? 'في الانتظار' : 'مفتوحة'}`);
+                closeModal();
+            }
+        }
+
+        // الرد على التذكرة
+        function replyToTicket(ticketId) {
+            const reply = prompt('اكتب ردك على التذكرة:');
+            if (reply) {
+                showNotification(`تم إرسال الرد على التذكرة ${ticketId}`);
+                closeModal();
+            }
+        }
+
+        // تحديث الإحصائيات
+        function updateStats() {
+            const openCount = tickets.filter(t => t.status === 'open').length;
+            const pendingCount = tickets.filter(t => t.status === 'pending').length;
+            const closedCount = tickets.filter(t => t.status === 'closed').length;
+
+            document.getElementById('openTickets').textContent = openCount;
+            document.getElementById('pendingTickets').textContent = pendingCount;
+            document.getElementById('closedTickets').textContent = closedCount;
+            document.getElementById('totalTickets').textContent = tickets.length;
+        }
+
+        // تحديث التذاكر
+        function refreshTickets() {
+            showNotification('تم تحديث قائمة التذاكر');
+            displayTickets();
+        }
+
+        // حفظ الإعدادات
+        function saveSettings() {
+            showNotification('تم حفظ الإعدادات بنجاح');
+        }
+
+        // إنشاء تذكرة جديدة
+        function createTicket() {
+            const subject = prompt('موضوع التذكرة الجديدة:');
+            if (subject) {
+                const newTicket = {
+                    id: `T-${String(tickets.length + 1).padStart(3, '0')}`,
+                    user: 'مستخدم جديد',
+                    avatar: '👤',
+                    subject: subject,
+                    status: 'open',
+                    priority: 'medium',
+                    created: new Date().toLocaleString('ar-SA'),
+                    category: 'عام'
+                };
+                tickets.unshift(newTicket);
+                displayTickets();
+                updateStats();
+                showNotification('تم إنشاء تذكرة جديدة بنجاح');
+            }
+        }
+
+        // تصدير البيانات
+        function exportData() {
+            const data = JSON.stringify(tickets, null, 2);
+            const blob = new Blob([data], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'tickets-data.json';
+            a.click();
+            showNotification('تم تصدير البيانات بنجاح');
+        }
+
+        // مسح السجلات
+        function clearLogs() {
+            if (confirm('هل أنت متأكد من مسح جميع السجلات؟')) {
+                showNotification('تم مسح السجلات بنجاح');
+            }
+        }
+
+        // عرض الإشعار
+        function showNotification(message) {
+            const notification = document.getElementById('notification');
+            const notificationText = document.getElementById('notificationText');
+            
+            notificationText.textContent = message;
+            notification.classList.add('show');
+            
+            setTimeout(() => {
+                notification.classList.remove('show');
+            }, 3000);
+        }
+
+        // تهيئة الصفحة
+        document.addEventListener('DOMContentLoaded', function() {
+            displayTickets();
+            updateStats();
+        });
+
+        // إغلاق النافذة المنبثقة عند النقر خارجها
+        document.getElementById('ticketModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeModal();
+            }
+        });
+    </script>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9675b364c1b9eca5',t:'MTc1Mzg4NzM2Ni4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>
+إضافة لوحة تحكم التذاكر
